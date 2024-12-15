@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <title>Drag and Drop Video Upload</title>
+    <style>
+        #drop-zone {
+            border: 2px dashed #007bff;
+            border-radius: 5px;
+            padding: 30px;
+            text-align: center;
+            color: #007bff;
+            margin: 20px;
+        }
+        #drop-zone.hover {
+            background-color: #f1f1f1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Drag and Drop Video Upload</h1>
+        <form id="upload-form" action="/uploadnew" method="post" enctype="multipart/form-data">
+            <div id="drop-zone">
+                <p>Drag and drop your video here</p>
+                <input type="file" name="video" id="file-input" style="display: none;">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block mt-3">Upload</button>
+        </form>
+    </div>
+    <div class="embed-responsive embed-responsive-4by3">
+    <!-- Video embed code goes here -->
+        <video class="embed-responsive-item" controls>
+        <source src="/output.avi" type="video/avi">
+    </div>
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            dropZone.classList.add('hover');
+        });
+
+        dropZone.addEventListener('dragleave', (event) => {
+            event.preventDefault();
+            dropZone.classList.remove('hover');
+        });
+
+        dropZone.addEventListener('drop', (event) => {
+            event.preventDefault();
+            dropZone.classList.remove('hover');
+            const files = event.dataTransfer.files;
+            fileInput.files = files;
+        });
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+    </script>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+</body>
+</html>
