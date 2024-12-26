@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Video for Motion Heatmap</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Upload Video for Motion Heatmap</h1>
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="video" accept="video/*" required>
+        <button type="submit">Upload</button>
+    </form>
+    
+    <div id="heatmapContainer">
+        <h2>Generated Heatmap:</h2>
+        <img id="heatmapImage" src="" alt="Heatmap will appear here">
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').onsubmit = async function(event) {
+            event.preventDefault(); // Prevent the default form submission
+
+            const formData = new FormData(this);
+            const response = await fetch(this.action, {
+                method: this.method,
+                body: formData
+            });
+
+            if (response.ok) {
+                const blob = await response.blob(); // Get the response as a blob
+                const imgUrl = URL.createObjectURL(blob); // Create a local URL for the blob
+
+                // Display the heatmap
+                const heatmapContainer = document.getElementById('heatmapContainer');
+                const heatmapImage = document.getElementById('heatmapImage');
+                heatmapImage.src = imgUrl;
+                heatmapContainer.style.display = 'block'; // Show the heatmap container
+            } else {
+                alert('Error processing the video. Please try again.');
+            }
+        };
+    </script>
+</body>
+</html>

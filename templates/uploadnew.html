@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload and Preview Video</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(180deg, #1D0139 6.61%, #330164 55.55%, #230145 92.08%);
+        }
+
+        /* Topbar */
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+
+            color: white;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+        }
+
+        .topbar img {
+            width: 120px; /* Adjust logo size */
+            height: auto;
+            margin-right: 20px;
+        }
+
+        .topbar nav {
+            display: flex;
+            gap: 20px;
+        }
+
+        .topbar nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .topbar nav a:hover {
+            color: #ff9800;
+        }
+
+        /* Main container */
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            width: 90%;
+            max-width: 1000px;
+            justify-content: center;
+            margin-top: 80px; /* Add space for topbar */
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Left Section */
+        .left-section, .right-section {
+            flex: 1;
+            padding: 20px;
+            box-sizing: border-box;
+            min-width: 280px;
+        }
+
+        h2 {
+            color: #333;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .upload-section {
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            padding: 12px;
+            font-size: 1rem;
+            margin-right: 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #videoPreviewSection {
+            display: none;
+            margin-top: 20px;
+        }
+
+        video {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        #generateBtn {
+            background-color: #ff9800;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        #generateBtn:hover {
+            background-color: #e68900;
+        }
+
+        .footer {
+            width: 100%;
+            padding: 20px 0;
+            background-color: #333;
+            color: white;
+            text-align: center;
+            font-size: 14px;
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+
+        .footer a {
+            color: #ff9800;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .footer img {
+            width: 100px;
+            height: auto;
+            margin-bottom: 10px;
+        }
+
+        .info {
+            font-size: 1rem;
+            margin-top: 20px;
+            color: #333;
+        }
+        /* Define the .white class in your CSS */
+.white {
+    color: white;
+}
+
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .left-section, .right-section {
+                min-width: 100%;
+                margin-bottom: 20px;
+            }
+
+            .topbar nav {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <!-- Correct HTML -->
+<h2 class="white">Viva</h2>
+
+        <!-- Make sure the path is correct -->
+<!--        <img src="static/logo.png" alt="VIVA">
+
+&lt;!&ndash; Adjusted path to static folder &ndash;&gt;-->
+        <nav>
+            <a href="https://www.linkedin.com/in/gobi-siva-521779228/" target="_blank">Contact Us</a>
+<!--            <a href="#about">Who We Are</a>-->
+        </nav>
+    </div>
+
+    <div class="container">
+        <!-- Left Section -->
+        <div class="left-section">
+            <!-- Video Upload Section -->
+            <h2>Upload and Preview Your Video</h2>
+            <form action="/uploadnew" method="POST" enctype="multipart/form-data" id="uploadForm">
+                <input type="file" name="video" id="videoFile" accept="video/*">
+                <button type="button" onclick="showPreview()">Upload Video</button>
+            </form>
+            <button id="generateBtn" onclick="startProcessing()" style="display:none;">Generate Heatmap</button>
+        </div>
+
+        <!-- Right Section -->
+        <div class="right-section">
+            <div id="videoPreviewSection">
+                <h3>Preview the uploaded video:</h3>
+                <video id="videoPreview" controls>
+                    <source id="videoSource" src="" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+
+
+    <script>
+        // Show video preview after upload
+        const videoFileInput = document.getElementById('videoFile');
+        const videoPreviewSection = document.getElementById('videoPreviewSection');
+        const videoPreview = document.getElementById('videoPreview');
+        const videoSource = document.getElementById('videoSource');
+        const generateBtn = document.getElementById('generateBtn');
+
+        function showPreview() {
+            const file = videoFileInput.files[0];
+            if (file) {
+                const videoURL = URL.createObjectURL(file);
+                videoSource.src = videoURL;
+                videoPreview.load();
+                videoPreviewSection.style.display = 'block'; // Show the preview section
+                generateBtn.style.display = 'inline-block'; // Show the generate heatmap button
+            }
+        }
+
+        // Function to trigger processing after preview
+        function startProcessing() {
+            // Submit the form to start the heatmap generation
+            document.getElementById('uploadForm').submit();
+        }
+    </script>
+
+</body>
+</html>
