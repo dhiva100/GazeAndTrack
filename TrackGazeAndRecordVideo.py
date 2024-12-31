@@ -168,13 +168,14 @@ def face_detect_and_record_video(url, video_output):
     out = cv2.VideoWriter(video_output, fourcc, 20.0, (right - left, bottom - top))  # video capture object
     # cursor_x, cursor_y = pyautogui.position()
     # prev_cursor_x, prev_cursor_y = cursor_x, cursor_y
+    cursor_positions = [] # to store cursor position of each frame
     while True:
         if stop_program:
             break
         img = pyautogui.screenshot(region=(left, top, right - left, bottom - top))  # get screenshot of browser window
         vid_frame = np.array(img)  # generate video frame
         ret, frame = cap.read()  # read the video frame
-        cursor_x, cursor_y = pyautogui.position()
+        prev_cursor_x, prev_cursor_y = pyautogui.position()
         if not ret:  # break if frame reading is unsuccessful
             break
         vid_frame = cv2.cvtColor(vid_frame, cv2.COLOR_BGR2RGB)
@@ -205,6 +206,7 @@ def face_detect_and_record_video(url, video_output):
                 print("Center calibration data not found")
             if cursor_control_enabled:
                 move_cursor(gaze_ratio_hor, gaze_ratio_ver)
+            cursor_x, cursor_y = pyautogui.position()
             cv2.circle(img=vid_frame, center=(cursor_x, cursor_y), radius=10, color=(0, 255, 255),
                        thickness=1)  # flourescent yellow circle
             cv2.circle(img=vid_frame, center=(cursor_x, cursor_y), radius=15, color=(0, 255, 255),
@@ -212,8 +214,15 @@ def face_detect_and_record_video(url, video_output):
             # draw fluorescent yellow linen trail
             # cv2.line(img=vid_frame, pt1=(prev_cursor_x, prev_cursor_y), pt2=(cursor_x, cursor_y), color=(0, 255),
             # thickness=5)
-            # prev_cursor_x, prev_cursor_y = cursor_x, cursor_y
+            cursor_positions.append([(prev_cursor_x, prev_cursor_y), (cursor_x, cursor_y)])
+        # create an overlay image
+        overlay = vid_frame.copy()
 
+        # iterate over cursor positions to draw a line for track cursor movement
+        for position in cursor_positions:
+            cv2.line(img=overlay, pt1=position[0], pt2=position[1], color=(0, 255, 255),
+                     thickness=10)
+            cv2.addWeighted(src1=overlay, alpha=0.020, src2=vid_frame, beta=0.980, gamma=0, dst=vid_frame)
         out.write(vid_frame)  # write the frame to the video file
         cv2.imshow("Frame", frame)  # display the frame
         # check key press to quit
