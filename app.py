@@ -2,8 +2,9 @@ import os
 import cv2
 import numpy as np
 from flask import Flask, render_template, request, send_file
-from TrackGazeAndRecordVideo import face_detect_and_record_video
+from TrainedModel.TrackGazeAndRecordVideo import face_detect_and_record_video
 import copy
+
 
 app = Flask(__name__)
 INPUT_FOLDER = 'VideoInput'
