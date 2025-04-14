@@ -1,10 +1,17 @@
 import os
+import threading
+
 import cv2
 import numpy as np
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, jsonify
 from TrainedModel.TrackGazeAndRecordVideo import face_detect_and_record_video
+from TrainedModel.TrackGazeAndRecordVideo import calibration_display, stop_calib, nn_model
 import copy
-
+import dlib
+import cv2
+import tkinter as tk
+import pyautogui
+import TrainedModel.TrackGazeAndRecordVideo as tg
 
 app = Flask(__name__)
 INPUT_FOLDER = 'VideoInput'
@@ -16,6 +23,11 @@ os.makedirs(HEATMAP_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 input_video_path = os.path.join(current_dir, INPUT_FOLDER, "GazeRecordedVideo.avi")
 output_video_path = os.path.join(current_dir, OUTPUT_FOLDER, "GazeHeatMap.avi")
+parameters = {}
+model = None
+x_scaler = None
+y_scaler = None
+webcam = 0
 
 
 # function to create video from frames
@@ -91,15 +103,42 @@ def create_heatmap(video_path):
     return video_path  # Return the path to the video file
 
 
-record_gaze = input("Do you want to record gaze? Yes/No: ")
-if record_gaze == "Yes":
-    print("Gaze control is starting now. Always use key 't' to toggle gaze control and 'q' to terminate gaze control "
-          "and continue with generating heatmap video\n")
-    url = str(input("Enter the website URL: "))
-    face_detect_and_record_video(url, input_video_path)
-    create_heatmap(input_video_path)
-else:
-    print("Please upload the input video to generate heatmap")
+# record_gaze = input("Do you want to record gaze? Yes/No: ")
+# if record_gaze == "Yes":
+#     print("Gaze control is starting now. Always use key 't' to toggle gaze control and 'q' to terminate gaze control "
+#           "and continue with generating heatmap video\n")
+#     url = str(input("Enter the website URL: "))
+#     face_detect_and_record_video(url, input_video_path)
+#     create_heatmap(input_video_path)
+# else:
+#     print("Please upload the input video to generate heatmap")
+def calibration_thread(n_points, cam):
+    global parameters
+    cap = cv2.VideoCapture(cam)  # open webcam
+    detector = dlib.get_frontal_face_detector()  # face detector
+    predictor = dlib.shape_predictor("requiredfiles/shape_predictor_68_face_landmarks.dat")  # path to model
+
+    screen_width, screen_height = pyautogui.size()
+    root = tk.Tk()
+    root.attributes('-fullscreen', True)
+    root.attributes('-topmost', True)
+    root.attributes('-alpha', 0.3)
+    root.config(bg='black')
+    root.overrideredirect(True)
+
+    canvas = tk.Canvas(root, width=screen_width, height=screen_height, bg='black', highlightthickness=0)
+    root.bind('s', lambda event: stop_calib(root))
+    canvas.pack()
+
+    # n_points = parameters["setup"]["n_calib_points"]
+
+    # Start calibration
+    def start_calibration():
+        calibration_display(n_points, root, canvas, cap, detector, predictor)
+
+    root.after(100, start_calibration)
+    root.mainloop()
+    cap.release()
 
 
 @app.route('/')
@@ -124,5 +163,94 @@ def upload_file():
     return send_file(video_file_path, as_attachment=True)
 
 
+@app.route('/setup', methods=['POST'])
+def setup():
+    data = request.get_json()
+    global parameters, webcam
+    tracking = data.get('tracking', False)
+    tg.calibration_required = data.get('calibration', False)
+    n_calib_points = int(data.get('n_calib_points', 0))
+    target_url = data.get('url', "")
+    try:
+        webcam = int(data.get('webcam', 0))
+    except ValueError:
+        return jsonify({"error": "Webcam value must be an integer."}), 400
+
+    if webcam not in [0, 1]:
+        return jsonify({"error": "Invalid webcam index. Only 0 (inbuilt) or 1 (external) allowed."}), 400
+    parameters["setup"] = {"tracking": tracking,
+                           "calibration": tg.calibration_required,
+                           "n_calib_points": n_calib_points,
+                           "target_url": target_url,
+                           "webcam": webcam}
+    print("setup received:", parameters["setup"])
+    print("Using", "External camera" if webcam == 1 else "Inbuilt camera")
+    return jsonify({"status": "config received"})
+
+
+@app.route('/calibrate', methods=["POST"])
+def calibrate():
+    n_points = parameters["setup"]["n_calib_points"]
+    cam = parameters["setup"]["webcam"]
+    threading.Thread(target=calibration_thread, args=(n_points, cam)).start()
+    parameters["setup"]["calibration"] = False
+    return jsonify({"status": "Calibration complete"})
+
+
+@app.route('/train', methods=["POST"])
+def train():
+    global model, x_scaler, y_scaler
+    model, x_scaler, y_scaler = nn_model()
+    return jsonify({"status": "Model Trained"})
+
+
+@app.route('/start-tracking', methods=['POST'])
+def start_tracking():
+    global model, x_scaler, y_scaler
+    cam = parameters["setup"]["webcam"]
+
+    def tracking_thread():
+        face_detect_and_record_video(parameters["setup"]["target_url"], "./VideoInput/recorded_video.avi", model=model,
+                                     x_scaler=x_scaler, y_scaler=y_scaler, webcam=cam)
+
+    threading.Thread(target=tracking_thread).start()
+    parameters["setup"]["tracking"] = False
+    return jsonify({"status": "tracking started"})
+
+
+@app.route('/stop', methods=['POST'])
+def stop_tracking():
+    tg.stop_program = True
+    return jsonify({"status": "Tracking stopped"})
+
+
+@app.route('/toggle-cursor', methods=['POST'])
+def toggle_cursor():
+    tg.cursor_control_enabled = not tg.cursor_control_enabled
+    return jsonify({
+        "status": "Cursor control toggled",
+        "enabled": tg.cursor_control_enabled
+    })
+
+
+@app.route('/status', methods=['GET'])
+def status():
+    return jsonify({
+        "model_trained": model is not None,
+        "tracking_enabled": tg.cursor_control_enabled,
+        "calibration_mode": tg.calibration_required
+    })
+
+
+@app.route('/reset', methods=['POST'])
+def reset():
+    global stop_progam, model, x_scaler, y_scaler
+    model = None
+    x_scaler = None
+    y_scaler = None
+    tg.calibration_required = True
+    return jsonify({"status": "Reset successful"})
+
+
 if __name__ == '__main__':
-    app.run(debug=False, host="0.0.0.0")
+    app.run(debug=True, host="0.0.0.0")

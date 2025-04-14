@@ -15,12 +15,11 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.metrics import r2_score, mean_squared_error
-import time
 
 # initial global variables for smoothing
 gaze_x_positions = []
 gaze_y_positions = []
-calibration_required = True
+calibration_required = False
 data = []
 prev_circle_id = None
 current_point = 0
@@ -88,7 +87,6 @@ def move_cursor(gaze_ratio_hor, gaze_ratio_ver, model, x_scaler, y_scaler):
     cursor_y = int(gaze_ratio_ver * screens_height / 5)  # fix y position
     scaled_x_y = x_scaler.transform(np.array([[cursor_x, cursor_y]]))  # scale the inputs
     pred_x, pred_y = y_scaler.inverse_transform(model.predict(scaled_x_y))[0]  # get model predict x, y
-
     # smooth cursor position
     # store cursor in global variable
     global gaze_x_positions, gaze_y_positions
@@ -117,7 +115,7 @@ stop_program = False
 def on_press(key):
     global cursor_control_enabled, stop_program
     try:
-        if key.char == 't':
+        if key.char == '2':
             cursor_control_enabled = not cursor_control_enabled
             print(f"{key.char} is pressed")
         elif key.char == 'q':
@@ -144,15 +142,13 @@ def gaze_calibrate(cap, detector, predictor):
     # current_dir = os.path.dirname(os.path.abspath(__file__))
     # predictor_path = os.path.join(current_dir, "../requiredfiles", "shape_predictor_68_face_landmarks.dat")
     # predictor = dlib.shape_predictor(predictor_path)
-    while True:
-        if stop_program:
-            break
-        # generate video frame
-        ret, frame = cap.read()  # read the video frame
-        if not ret:  # break if frame reading is unsuccessful
-            break
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # convert to frame to gray color
-        faces = detector(gray)
+    # generate video frame
+    ret, frame = cap.read()  # read the video frame
+    if not ret:  # break if frame reading is unsuccessful
+        return None
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # convert to frame to gray color
+    faces = detector(gray)
+    try:
         for face in faces:
             landmarks = predictor(gray, face)  # detect the landmark
             gaze_ratio_left_hor, gaze_ratio_left_ver = get_gaze_ratio(eye_points=[36, 37, 38, 39, 40, 41],
@@ -167,6 +163,9 @@ def gaze_calibrate(cap, detector, predictor):
             cursor_x = int(gaze_ratio_hor * screen_width / 5)  # fix x position
             cursor_y = int(gaze_ratio_ver * screens_height / 5)  # fix x position
             return cursor_x, cursor_y
+    except:
+        print("Face not detected")
+    return None
 
 
 def calibration_display(n_calibration_points, root, canvas, cap, detector, predictor):
@@ -174,7 +173,8 @@ def calibration_display(n_calibration_points, root, canvas, cap, detector, predi
     global current_point
     global calibration_required
     print(
-        "Calibration starting, follow the dot with your eyes. Press 's' anytime to terminate calibration and continue")
+        "Calibration starting, follow the dot with your eyes. Press 'stop' anytime to terminate calibration and "
+        "continue")
     if current_point >= n_calibration_points:  # check calibration point
         print("calibration finished")
         # storing current data in a file
@@ -210,7 +210,6 @@ def calibration_display(n_calibration_points, root, canvas, cap, detector, predi
     except:
         print("gaze not detected")
         n_calibration_points += 1
-
     if current_point < n_calibration_points:
         root.after(2000, lambda: calibration_display(n_calibration_points, root, canvas, cap, detector, predictor))
     else:
@@ -265,50 +264,25 @@ def nn_model():
     return trained_model, scaler_x, scaler_y
 
 
-def face_detect_and_record_video(url, video_output):
+def face_detect_and_record_video(url, video_output, model, x_scaler, y_scaler, webcam):
     global calibration_required, frame_count
     # start calibration when required
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(webcam)
     detector = dlib.get_frontal_face_detector()  # object to detect the face
     current_dir = os.path.dirname(os.path.abspath(__file__))
     predictor_path = os.path.join(current_dir, "../requiredfiles", "shape_predictor_68_face_landmarks.dat")
     predictor = dlib.shape_predictor(predictor_path)  # face predictor
-    input_val = input("Do you want to calibrate gaze control? Yes/No: ").strip().lower()
-    calibration_required = input_val == "yes"
-    while calibration_required:
-        try:
-            n_calibration = int(input("Input the number of calibration points: 20 to 1000? "))
-        except:
-            n_calibration = 20
-        # start the tkinter window
-        root = tk.Tk()
-        root.attributes('-fullscreen', True)
-        root.attributes('-topmost', True)
-        root.attributes('-alpha', 0.3)
-        root.config(bg='black')
-        root.overrideredirect(True)
-
-        canvas = tk.Canvas(root, width=screen_width, height=screen_height, bg='black',
-                           highlightthickness=0)  # create canvas
-        # root.bind('<Escape>', stop_program_(root))
-        root.bind('s', lambda event: stop_calib(root))
-        canvas.pack()
-        calibration_required = calibration_display(n_calibration, root, canvas, cap, detector, predictor)
-        root.mainloop()
-    print("calib closing")
-    # train the model
-    if not model_trained:
-        trained_model, x_trans, y_trans = nn_model()
-        print("model trained ", model_trained)
-
-    open_website(url)  # open url in browser
-
+    # input_val = input("Do you want to calibrate gaze control? Yes/No: ").strip().lower()
+    # calibration_required = input_val == "yes"
+    try:
+        open_website(url)  # open url in browser
+    except:
+        print("Cannot open URL. Please check your internet connection and relaunch tracking")
     window = gw.getWindowsWithTitle("Chrome")[-1]  # find browser window
     left, top, right, bottom = window.left, window.top, window.right, window.bottom  # get bounding box of window
     fourcc = cv2.VideoWriter_fourcc(*'XVID')  # define codec
     out = cv2.VideoWriter(video_output, fourcc, 5.0, (right - left, bottom - top))  # video capture object
     cursor_positions = []  # to store cursor position of each frame
-
     while True:
         if stop_program:
             break
@@ -323,28 +297,30 @@ def face_detect_and_record_video(url, video_output):
         faces = detector(gray)
         # cv2.line(img=vid_frame, pt1=(prev_cursor_x, prev_cursor_y), pt2=(cursor_x, cursor_y), color=(0, 255),
         # thickness=5)
-        for face in faces:
-            x, x1, y, y1 = face.left(), face.right(), face.top(), face.bottom()  # get the face coordinates
-            cv2.rectangle(img=frame, pt1=(x, y), pt2=(x1, y1), color=(0, 255, 0),
-                          thickness=2)  # draw a rectangle over the face
-            landmarks = predictor(gray, face)  # detect the landmark
-            gaze_ratio_left_hor, gaze_ratio_left_ver = get_gaze_ratio(eye_points=[36, 37, 38, 39, 40, 41],
-                                                                      facial_landmarks=landmarks,
-                                                                      gray_frame=gray)  # get the left eye gaze ratio
-            gaze_ratio_right_hor, gaze_ratio_right_ver = get_gaze_ratio(eye_points=[42, 43, 44, 45, 46, 47],
-                                                                        facial_landmarks=landmarks,
-                                                                        gray_frame=gray)  # get the right eye gaze ratio
-            gaze_ratio_hor = (gaze_ratio_left_hor + gaze_ratio_right_hor) / 2  # horizontal gaze ratio
-            gaze_ratio_ver = (gaze_ratio_right_ver + gaze_ratio_right_ver) / 2  # vertical gaze ratio
-
-            if cursor_control_enabled:
-                move_cursor(gaze_ratio_hor, gaze_ratio_ver, trained_model, x_trans, y_trans)
-            cursor_x, cursor_y = pyautogui.position()
-            cv2.circle(img=vid_frame, center=(cursor_x, cursor_y), radius=10, color=(200, 50, 200),
-                       thickness=1)  # flourescent yellow circle
-            cv2.circle(img=vid_frame, center=(cursor_x, cursor_y), radius=15, color=(200, 50, 200),
-                       thickness=2)  # flourescent yellow border
-            cursor_positions.append([(prev_cursor_x, prev_cursor_y), (cursor_x, cursor_y)])
+        try:
+            for face in faces:
+                x, x1, y, y1 = face.left(), face.right(), face.top(), face.bottom()  # get the face coordinates
+                cv2.rectangle(img=frame, pt1=(x, y), pt2=(x1, y1), color=(0, 255, 0),
+                              thickness=2)  # draw a rectangle over the face
+                landmarks = predictor(gray, face)  # detect the landmark
+                gaze_ratio_left_hor, gaze_ratio_left_ver = get_gaze_ratio(eye_points=[36, 37, 38, 39, 40, 41],
+                                                                          facial_landmarks=landmarks,
+                                                                          gray_frame=gray)  # get the left eye gaze ratio
+                gaze_ratio_right_hor, gaze_ratio_right_ver = get_gaze_ratio(eye_points=[42, 43, 44, 45, 46, 47],
+                                                                            facial_landmarks=landmarks,
+                                                                            gray_frame=gray)  # get the right eye gaze ratio
+                gaze_ratio_hor = (gaze_ratio_left_hor + gaze_ratio_right_hor) / 2  # horizontal gaze ratio
+                gaze_ratio_ver = (gaze_ratio_right_ver + gaze_ratio_right_ver) / 2  # vertical gaze ratio
+                if cursor_control_enabled:
+                    move_cursor(gaze_ratio_hor, gaze_ratio_ver, model, x_scaler, y_scaler)
+                cursor_x, cursor_y = pyautogui.position()
+                cv2.circle(img=vid_frame, center=(cursor_x, cursor_y), radius=10, color=(200, 50, 200),
+                           thickness=1)  # flourescent yellow circle
+                cv2.circle(img=vid_frame, center=(cursor_x, cursor_y), radius=15, color=(200, 50, 200),
+                           thickness=2)  # flourescent yellow border
+                cursor_positions.append([(prev_cursor_x, prev_cursor_y), (cursor_x, cursor_y)])
+        except:
+            print("Face not detected")
         # create an overlay image
         overlay = vid_frame.copy()
 
@@ -354,10 +330,14 @@ def face_detect_and_record_video(url, video_output):
                      thickness=10)
             cv2.addWeighted(src1=overlay, alpha=0.300, src2=vid_frame, beta=0.700, gamma=0, dst=vid_frame)
         out.write(vid_frame)  # write the frame to the video file
-        cv2.imshow("Frame", frame)  # display the frame
+        # cv2.imshow("Frame", frame)  # display the frame
         # check key press to quit
         if stop_program:
             break
     cap.release()
     out.release()
     cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    face_detect_and_record_video("https://example.com", "output.avi")
